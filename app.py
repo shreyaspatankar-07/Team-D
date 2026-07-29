@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from ai import OLLAMA_MODEL, ask_maintenance_assistant, get_available_models, machine_context, stream_maintenance_report
-from work_orders import VALID_PRIORITIES, VALID_STATUSES, create_work_order, failure_details, get_work_orders, initialise_work_orders, update_work_order
+from work_orders import VALID_PRIORITIES, VALID_STATUSES, create_work_order, delete_work_order, failure_details, get_work_orders, initialise_work_orders, update_work_order
 
 
 DATA_FILE = Path("ai4i2020.csv")
@@ -617,15 +617,38 @@ def signal_state(value: float, attention: float, critical: float) -> str:
 
 def render_work_order_queue() -> None:
     initialise_work_orders()
-    st.markdown('<div class="panel-title">Persistent work-order queue</div>', unsafe_allow_html=True)
+    st.markdown('<div class="panel-title">Work-order register</div>', unsafe_allow_html=True)
+    search = st.text_input(
+        "Search work orders",
+        placeholder="Search by order ID, product ID, failure reason, or recommended action",
+        key="work_order_search",
+    )
     filter_one, filter_two = st.columns(2)
     with filter_one:
         status_filter = st.selectbox("Order status", ["All", *VALID_STATUSES], key="order_status_filter")
     with filter_two:
         priority_filter = st.selectbox("Priority", ["All", *VALID_PRIORITIES], key="order_priority_filter")
-    orders = get_work_orders(status_filter, priority_filter)
+    orders = get_work_orders(status_filter, priority_filter, search)
+
+    total = len(orders)
+    open_orders = int((orders["status"] == "Open").sum()) if not orders.empty else 0
+    in_progress = int((orders["status"] == "In Progress").sum()) if not orders.empty else 0
+    closed = int((orders["status"] == "Closed").sum()) if not orders.empty else 0
+    critical = int((orders["priority"] == "Critical").sum()) if not orders.empty else 0
+    kpi_one, kpi_two, kpi_three, kpi_four, kpi_five = st.columns(5, gap="medium")
+    with kpi_one:
+        metric_card("Total orders", f"{total:,}", "Current results")
+    with kpi_two:
+        metric_card("Open", f"{open_orders:,}", "Awaiting action", warn=open_orders > 0)
+    with kpi_three:
+        metric_card("In progress", f"{in_progress:,}", "Under maintenance")
+    with kpi_four:
+        metric_card("Closed", f"{closed:,}", "Completed orders")
+    with kpi_five:
+        metric_card("Critical", f"{critical:,}", "Current results", warn=critical > 0)
+
     if orders.empty:
-        st.info("No work orders match these filters. Create one from a machine with a recorded failure.")
+        st.info("No work orders match the current search and filters. Create one from a machine with a recorded failure.")
         return
 
     st.dataframe(
@@ -633,6 +656,24 @@ def render_work_order_queue() -> None:
         width="stretch",
         hide_index=True,
     )
+    st.markdown('<div class="panel-title">Export work-order data</div>', unsafe_allow_html=True)
+    export_json, export_csv = st.columns(2)
+    with export_json:
+        st.download_button(
+            "Download JSON",
+            orders.to_json(orient="records", indent=2),
+            file_name="work_orders.json",
+            mime="application/json",
+            width="stretch",
+        )
+    with export_csv:
+        st.download_button(
+            "Download CSV",
+            orders.to_csv(index=False),
+            file_name="work_orders.csv",
+            mime="text/csv",
+            width="stretch",
+        )
     for order in orders.itertuples(index=False):
         with st.expander(f"Work order #{order.order_id} · {order.product_id} · {order.status}"):
             st.write(order.recommended_action)
@@ -645,6 +686,11 @@ def render_work_order_queue() -> None:
                 st.write("")
                 if st.button("Save", key=f"save_{order.order_id}", width="stretch"):
                     update_work_order(order.order_id, priority, status)
+                    st.rerun()
+            confirm_delete = st.checkbox("Confirm deletion", key=f"confirm_delete_{order.order_id}")
+            if st.button("Delete work order", key=f"delete_{order.order_id}", disabled=not confirm_delete):
+                if delete_work_order(order.order_id):
+                    st.success(f"Work order #{order.order_id} deleted.")
                     st.rerun()
 
 
@@ -664,8 +710,7 @@ def render_ai_assistant(data: pd.DataFrame) -> None:
         unsafe_allow_html=True,
     )
 
-    assistant_tab, work_orders_tab = st.tabs(["AI Assistant", "Work Orders"])
-    with assistant_tab:
+    with st.container():
         product_id = st.selectbox("Choose a machine", data["Product ID"].tolist(), key="ai_machine")
         machine = data.loc[data["Product ID"] == product_id].iloc[0]
         if st.session_state.get("ai_context_product") != product_id:
@@ -773,17 +818,12 @@ def render_ai_assistant(data: pd.DataFrame) -> None:
                     st.markdown(answer)
                 st.session_state.ai_messages.append({"role": "assistant", "content": answer})
 
-    with work_orders_tab:
-        with st.container(border=True):
-            render_work_order_queue()
-
-
 df = load_data()
 
 with st.sidebar:
     st.title("Agentic Facility Operations ")
     st.caption("Module navigation")
-    section = st.radio("Section", ["Module 1: EDA", "Module 2: Dashboard", "Module 3: Machine Explorer", "Module 4: AI Assistant"])
+    section = st.radio("Section", ["Module 1: EDA", "Module 2: Dashboard", "Module 3: Machine Explorer", "Module 4: AI Assistant", "Module 5 & 6: Work Order Management"])
 
     st.divider()
     st.caption("Filters")
@@ -817,7 +857,7 @@ if "Any failure mode" not in selected_failure_modes:
     if selected_mode_columns:
         filtered_df = filtered_df[filtered_df[selected_mode_columns].eq(1).any(axis=1)].copy()
 
-if filtered_df.empty:
+if filtered_df.empty and section != "Module 5 & 6: Work Order Management":
     st.warning("No records match the current filters.")
     st.stop()
 
@@ -827,5 +867,21 @@ elif section == "Module 2: Dashboard":
     render_dashboard(filtered_df)
 elif section == "Module 3: Machine Explorer":
     render_machine_explorer(filtered_df)
+elif section == "Module 5 & 6: Work Order Management":
+    st.markdown(
+        """
+        <section class="hero">
+            <div>
+                <div class="eyebrow">Module 5 &amp; 6</div>
+                <h1>Work Order Management</h1>
+                <p>Search, filter, update, export, and remove persistent maintenance work orders.</p>
+            </div>
+            <div class="badge">Persistent register</div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+    with st.container(border=True):
+        render_work_order_queue()
 else:
     render_ai_assistant(filtered_df)

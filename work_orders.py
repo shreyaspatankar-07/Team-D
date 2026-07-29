@@ -102,7 +102,7 @@ def create_work_order(machine: Any) -> tuple[bool, str]:
         return False, f"{machine['Product ID']} already has an active work order."
 
 
-def get_work_orders(status: str = "All", priority: str = "All") -> pd.DataFrame:
+def get_work_orders(status: str = "All", priority: str = "All", search: str = "") -> pd.DataFrame:
     """Return the persistent queue, newest first, with optional filters."""
     initialise_work_orders()
     clauses: list[str] = []
@@ -113,6 +113,12 @@ def get_work_orders(status: str = "All", priority: str = "All") -> pd.DataFrame:
     if priority != "All":
         clauses.append("priority = ?")
         values.append(priority)
+    if search.strip():
+        search_term = f"%{search.strip()}%"
+        clauses.append(
+            "(CAST(order_id AS TEXT) LIKE ? OR product_id LIKE ? OR failure_reason LIKE ? OR recommended_action LIKE ?)"
+        )
+        values.extend([search_term] * 4)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     with _connection() as connection:
         return pd.read_sql_query(
@@ -120,6 +126,14 @@ def get_work_orders(status: str = "All", priority: str = "All") -> pd.DataFrame:
             connection,
             params=values,
         )
+
+
+def delete_work_order(order_id: int) -> bool:
+    """Delete one work order and report whether a record was removed."""
+    initialise_work_orders()
+    with _connection() as connection:
+        cursor = connection.execute("DELETE FROM work_orders WHERE order_id = ?", (order_id,))
+        return cursor.rowcount > 0
 
 
 def update_work_order(order_id: int, priority: str, status: str) -> None:
