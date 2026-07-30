@@ -99,7 +99,7 @@ next checks. If the evidence is insufficient, say so plainly. Keep the answer un
             "prompt": prompt,
             "stream": False,
             "keep_alive": "10m",
-            "options": {"temperature": 0.2, "num_predict": 105},
+            "options": {"temperature": 0.2, "num_predict": 320},
         },
     )
     return response.get("response", "").strip() or "Ollama returned an empty response."
@@ -155,7 +155,7 @@ qualified maintenance review. Do not add a title, preamble, or closing text."""
                 "prompt": prompt,
                 "stream": True,
                 "keep_alive": "10m",
-                "options": {"temperature": 0.15, "num_predict": 300},
+                "options": {"temperature": 0.15, "num_predict": 420},
             }
         ).encode("utf-8"),
         headers={"Content-Type": "application/json"},
