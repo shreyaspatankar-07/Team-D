@@ -23,6 +23,7 @@ from utils.charts import (
 )
 from utils.timeline import generate_maintenance_timeline, generate_recent_events
 from utils.styles import page_header, section_header
+from utils import db
 
 
 # ── Colour helpers ────────────────────────────────────────────────────────────
@@ -352,7 +353,7 @@ def render(df, raw_df) -> None:
 
     with col_prev:
         st.write("")  # vertical spacer
-        if st.button("◀", disabled=(current_idx == 0), use_container_width=True, help="Previous machine"):
+        if st.button("◀", disabled=(current_idx == 0), width='stretch', help="Previous machine"):
             st.session_state["selected_machine_id"] = product_ids[current_idx - 1]
             st.rerun()
 
@@ -369,7 +370,7 @@ def render(df, raw_df) -> None:
 
     with col_next:
         st.write("")  # vertical spacer
-        if st.button("▶", disabled=(current_idx == total_machines - 1), use_container_width=True, help="Next machine"):
+        if st.button("▶", disabled=(current_idx == total_machines - 1), width='stretch', help="Next machine"):
             st.session_state["selected_machine_id"] = product_ids[current_idx + 1]
             st.rerun()
 
@@ -389,7 +390,46 @@ def render(df, raw_df) -> None:
     section_header("Selected Machine", "Identity, status and health score.")
     _render_machine_info_card(machine, score, category, color, fp)
 
-    # ── Live Sensor Values ────────────────────────────────────────────────────
+    # ── Create Work Order Button ───────────────────────────────────────────────
+    # Available for both failed and healthy machines.
+    # Clicking auto-fills the Work Order Creation form via session state.
+    wo_btn_col, _ = st.columns([2, 5])
+    with wo_btn_col:
+        if st.button(
+            "🔧  Create Work Order",
+            key="explorer_create_wo_btn",
+            type="primary",
+            width="stretch",
+            help="Navigate to Work Order Creation with this machine's details pre-filled.",
+        ):
+            # ── Determine failure type ─────────────────────────────────────────
+            failure_codes = [c for c in ["TWF", "HDF", "PWF", "OSF", "RNF"]
+                             if machine.get(c, 0) == 1]
+            # Use the first detected failure type; fall back to TWF for healthy machines
+            primary_failure = failure_codes[0] if failure_codes else db.FAILURE_TYPES[0]
+
+            # ── Recommended Technician Type ────────────────────────────────────
+            if failure_codes:
+                tech_type = db.FAILURE_TO_TECH_TYPE.get(primary_failure, db.TECHNICIAN_TYPES[0])
+                priority  = db.FAILURE_TO_PRIORITY.get(primary_failure, "Medium")
+                description = db.FAILURE_DESCRIPTIONS.get(primary_failure, "")
+            else:
+                tech_type   = db.HEALTHY_TECH_TYPE
+                priority    = db.HEALTHY_PRIORITY
+                description = db.HEALTHY_DESCRIPTION
+
+            # ── Write pre-fill payload to session state ────────────────────────
+            st.session_state["woc_prefill"] = {
+                "product_id":   str(machine["Product ID"]),
+                "failure_type": primary_failure,
+                "tech_type":    tech_type,
+                "priority":     priority,
+                "description":  description,
+            }
+            # Navigate to Work Order Creation page
+            st.session_state["page"] = "work_order_creation"
+            st.rerun()
+
     section_header("Live Sensor Values", "Current readings with operating-range status badges.")
 
     sensors = [
@@ -417,12 +457,12 @@ def render(df, raw_df) -> None:
     with g1:
         st.plotly_chart(
             chart_gauge_temperature(float(machine["Air temperature [K]"]), "Air Temperature"),
-            use_container_width=True,
+            width="stretch",
         )
     with g2:
         st.plotly_chart(
             chart_gauge_temperature(float(machine["Process temperature [K]"]), "Process Temperature"),
-            use_container_width=True,
+            width="stretch",
         )
     with g3:
         st.plotly_chart(
@@ -430,16 +470,16 @@ def render(df, raw_df) -> None:
                 float(machine["Air temperature [K]"]),
                 float(machine["Process temperature [K]"]),
             ),
-            use_container_width=True,
+            width="stretch",
         )
 
     g4, g5, g6 = st.columns(3)
     with g4:
-        st.plotly_chart(chart_gauge_rpm(float(machine["Rotational speed [rpm]"])), use_container_width=True)
+        st.plotly_chart(chart_gauge_rpm(float(machine["Rotational speed [rpm]"])), width="stretch")
     with g5:
-        st.plotly_chart(chart_gauge_torque(float(machine["Torque [Nm]"])), use_container_width=True)
+        st.plotly_chart(chart_gauge_torque(float(machine["Torque [Nm]"])), width="stretch")
     with g6:
-        st.plotly_chart(chart_tool_wear_gauge(float(machine["Tool wear [min]"])), use_container_width=True)
+        st.plotly_chart(chart_tool_wear_gauge(float(machine["Tool wear [min]"])), width="stretch")
 
     # ── Failure Analysis ──────────────────────────────────────────────────────
     section_header("Failure Analysis", "Prediction result with confidence, risk level, and root cause.")
@@ -469,7 +509,7 @@ def render(df, raw_df) -> None:
 
     with gauge_col:
         st.write("")
-        st.plotly_chart(chart_health_gauge(score, category, color), use_container_width=True)
+        st.plotly_chart(chart_health_gauge(score, category, color), width="stretch")
 
     # ── Maintenance Timeline + Recent Events ──────────────────────────────────
     tl_col, ev_col = st.columns(2)

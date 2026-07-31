@@ -5,6 +5,11 @@ app.py — Main entry point for the Machine Failure Analysis Platform.
 import streamlit as st
 from utils.styles import inject_css
 from utils.data import load_data, filter_dataframe, compute_kpis
+from utils import db
+from utils import ollama_service
+
+# Ensure SQLite tables exist before any page renders
+db.init_db()
 
 # ── Page Configuration ────────────────────────────────────────────────────────
 
@@ -33,6 +38,14 @@ if "ai_report_metas" not in st.session_state:
     st.session_state["ai_report_metas"] = {}
 if "chat_histories"  not in st.session_state:
     st.session_state["chat_histories"] = {}
+
+# ── Ollama Auto-start ──────────────────────────────────────────────────────────────
+# Run only once for the entire application lifecycle.
+@st.cache_resource
+def initialize_ollama():
+    return ollama_service.ensure_ollama_running()
+
+st.session_state["_ollama_available"] = initialize_ollama()
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 
@@ -64,11 +77,22 @@ with st.sidebar:
         st.session_state["page"] = page_key
 
     NAV_ITEMS = [
-        ("dashboard",    "🏠  Dashboard"),
-        ("analytics",    "📊  Data Analytics"),
-        ("explorer",     "🔍  Machine Explorer"),
-        ("ai_assistant", "🤖  AI Assistant"),
+        ("dashboard",           "🏠  Dashboard"),
+        ("analytics",           "📊  Data Analytics"),
+        ("explorer",            "🔍  Machine Explorer"),
+        ("ai_assistant",        "🤖  AI Assistant"),
+        ("work_order_creation",  "🔧  Work Order Creation"),
+        ("work_order_management","📋  Work Order Management"),
     ]
+
+    # Ollama status warning (only shown when auto-start failed)
+    if not st.session_state.get("_ollama_available", True):
+        st.warning(
+            "⚠️ Ollama could not be started automatically. "
+            "Please ensure Ollama is installed and available on your PATH.\n\n"
+            "The AI Assistant will be unavailable until Ollama is running.",
+            icon=None,
+        )
 
     for key, label in NAV_ITEMS:
         btn_type = "primary" if st.session_state["page"] == key else "secondary"
@@ -76,7 +100,7 @@ with st.sidebar:
             label,
             key=f"nav_{key}",
             type=btn_type,
-            use_container_width=True,
+            width="stretch",
             on_click=_nav_to,
             args=(key,),
         )
@@ -145,3 +169,11 @@ elif current_page == "explorer":
 elif current_page == "ai_assistant":
     from pages import ai_assistant
     ai_assistant.render(raw_df, raw_df)
+
+elif current_page == "work_order_creation":
+    from pages import work_order_creation
+    work_order_creation.render(raw_df)
+
+elif current_page == "work_order_management":
+    from pages import work_order_management
+    work_order_management.render()

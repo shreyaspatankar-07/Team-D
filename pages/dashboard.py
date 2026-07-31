@@ -61,7 +61,7 @@ def render(df, raw_df) -> None:
     col1, col2 = st.columns(2)
     with col1:
         fail_data = compute_failure_distribution(df)
-        st.plotly_chart(chart_failure_dist(fail_data), use_container_width=True)
+        st.plotly_chart(chart_failure_dist(fail_data), width="stretch")
         observation(
             "<strong>Observation:</strong> Only ~3.4% of all records are machine failures, "
             "highlighting a significant class imbalance. This is typical in real-world "
@@ -69,7 +69,7 @@ def render(df, raw_df) -> None:
         )
     with col2:
         type_data = compute_type_distribution(df)
-        st.plotly_chart(chart_type_dist(type_data), use_container_width=True)
+        st.plotly_chart(chart_type_dist(type_data), width="stretch")
         observation(
             "<strong>Observation:</strong> Low-quality (L) machines dominate at ~60% of "
             "the dataset, followed by Medium (M) at ~30% and High (H) at ~10%, "
@@ -84,7 +84,7 @@ def render(df, raw_df) -> None:
     col3, col4 = st.columns(2)
     with col3:
         mode_data = compute_failure_mode_breakdown(df)
-        st.plotly_chart(chart_failure_mode_breakdown(mode_data), use_container_width=True)
+        st.plotly_chart(chart_failure_mode_breakdown(mode_data), width="stretch")
         observation(
             "<strong>Observation:</strong> Heat Dissipation Failure (HDF) and Overstrain "
             "Failure (OSF) are the most frequent failure modes. Random Failure (RNF) is the "
@@ -93,7 +93,7 @@ def render(df, raw_df) -> None:
         )
     with col4:
         by_type = compute_failure_by_type(df)
-        st.plotly_chart(chart_failure_by_type(by_type), use_container_width=True)
+        st.plotly_chart(chart_failure_by_type(by_type), width="stretch")
         observation(
             "<strong>Observation:</strong> High-quality (H) machines show the highest failure "
             "rate percentage despite being fewer in count, suggesting they operate under more "

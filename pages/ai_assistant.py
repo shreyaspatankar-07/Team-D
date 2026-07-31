@@ -168,7 +168,7 @@ def _show_export_buttons(report_text: str, meta: dict, context: dict, machine_id
             data=md_content.encode("utf-8"),
             file_name=f"report_{machine_id}_{ts_fn}.md",
             mime="text/markdown",
-            use_container_width=True,
+            width="stretch",
             key=f"dl_md_{machine_id}_{ts_fn}",
         )
 
@@ -180,7 +180,7 @@ def _show_export_buttons(report_text: str, meta: dict, context: dict, machine_id
                 data=pdf_bytes,
                 file_name=f"report_{machine_id}_{ts_fn}.pdf",
                 mime="application/pdf",
-                use_container_width=True,
+                width="stretch",
                 key=f"dl_pdf_{machine_id}_{ts_fn}",
             )
 
@@ -286,11 +286,11 @@ def render(df, raw_df) -> None:
                 generate_btn = st.button(
                     "🔄 Refresh Report" if cached_report else "⚡ Generate Report",
                     type="primary",
-                    use_container_width=True,
+                    width="stretch",
                     key=f"gen_{machine_id}",
                 )
             with btn_col2:
-                if cached_report and st.button("🗑️ Clear", use_container_width=True, key=f"clear_{machine_id}"):
+                if cached_report and st.button("🗑️ Clear", width="stretch", key=f"clear_{machine_id}"):
                     st.session_state["ai_reports"].pop(machine_id, None)
                     st.session_state["ai_report_metas"].pop(machine_id, None)
                     st.rerun()
@@ -341,7 +341,7 @@ def render(df, raw_df) -> None:
     q_cols = st.columns(3)
     for i, q in enumerate(questions):
         with q_cols[i % 3]:
-            if st.button(q, key=f"sq_{machine_id}_{i}", use_container_width=True):
+            if st.button(q, key=f"sq_{machine_id}_{i}", width="stretch"):
                 history.append({"role": "user", "content": q})
                 st.rerun()
 
@@ -355,7 +355,7 @@ def render(df, raw_df) -> None:
         section_header("Conversation", f"Full context of {machine_id} injected into every message.")
     with clear_btn_col:
         st.write("")
-        if st.button("🗑️ Clear", key=f"clear_chat_{machine_id}", use_container_width=True):
+        if st.button("🗑️ Clear", key=f"clear_chat_{machine_id}", width="stretch"):
             st.session_state["chat_histories"][machine_id] = []
             st.rerun()
 

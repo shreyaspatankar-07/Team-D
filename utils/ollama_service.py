@@ -2,6 +2,7 @@
 utils/ollama_service.py — Reusable Ollama API wrapper.
 
 Provides:
+  - ensure_ollama_running() → bool   (auto-starts Ollama if needed)
   - is_ollama_available()  → bool
   - build_machine_context()  → dict
   - generate_report()        → Iterator[str]  (streams tokens)
@@ -9,6 +10,9 @@ Provides:
 """
 
 import json
+import subprocess
+import sys
+import time
 import requests
 from typing import Iterator
 
@@ -17,6 +21,62 @@ OLLAMA_MODEL = "llama3.2"
 
 # Timeout for streaming requests (seconds)
 _STREAM_TIMEOUT = 180
+
+# How long to wait (seconds) for Ollama to become available after launching it
+_STARTUP_TIMEOUT = 15
+
+
+# ── Auto-start ────────────────────────────────────────────────────────────
+
+def ensure_ollama_running() -> bool:
+    """
+    Ensure Ollama is running before the app tries to use it.
+
+    1. If Ollama is already reachable, return True immediately.
+    2. If not, launch ``ollama serve`` as a background process:
+       - On Windows: uses CREATE_NO_WINDOW + DETACHED_PROCESS flags so no
+         console window appears alongside the Streamlit browser tab.
+       - On other platforms: redirects stdout/stderr to DEVNULL.
+    3. Poll /api/tags once per second for up to _STARTUP_TIMEOUT seconds.
+    4. Return True if Ollama became available, False otherwise.
+
+    Calling this multiple times is safe — the availability check runs first
+    so a second call will see an already-running server and return True
+    without launching a duplicate process.
+    """
+    # Already up — nothing to do.
+    if is_ollama_available():
+        return True
+
+    # Launch ollama serve in the background.
+    try:
+        if sys.platform == "win32":
+            subprocess.Popen(
+                ["ollama", "serve"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+        else:
+            subprocess.Popen(
+                ["ollama", "serve"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+    except FileNotFoundError:
+        # ollama executable not found on PATH — not installed.
+        return False
+    except Exception:
+        return False
+
+    # Wait until the server becomes reachable.
+    for _ in range(_STARTUP_TIMEOUT):
+        time.sleep(1)
+        if is_ollama_available():
+            return True
+
+    return False
 
 
 # ── Availability Check ────────────────────────────────────────────────────────

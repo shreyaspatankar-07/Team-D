@@ -70,12 +70,12 @@ def render(df, raw_df) -> None:
         c3.metric("Features", len(preview["columns"]))
 
         st.markdown("<br>", unsafe_allow_html=True)
-        st.dataframe(df.head(10).reset_index(drop=True), use_container_width=True, height=380)
+        st.dataframe(df.head(10).reset_index(drop=True), width="stretch", height=380)
 
         st.markdown("<br>", unsafe_allow_html=True)
         section_header("Descriptive Statistics", "Count, mean, std, quartiles for all numerical features.")
         stats_df = compute_descriptive_stats(df)
-        st.dataframe(stats_df.set_index("Feature"), use_container_width=True)
+        st.dataframe(stats_df.set_index("Feature"), width="stretch")
         observation(
             "<strong>Observation:</strong> Air and Process temperatures occupy a narrow range "
             "(~295–315 K), indicating controlled thermal conditions. Rotational speed has a mean "
@@ -93,14 +93,14 @@ def render(df, raw_df) -> None:
         col1, col2 = st.columns(2)
         with col1:
             fail_data = compute_failure_distribution(df)
-            st.plotly_chart(chart_failure_dist(fail_data), use_container_width=True)
+            st.plotly_chart(chart_failure_dist(fail_data), width="stretch")
             observation(
                 "<strong>Observation:</strong> With only ~3.4% failures out of 10,000 records, "
                 "the dataset is heavily imbalanced — typical in real-world predictive maintenance."
             )
         with col2:
             type_data = compute_type_distribution(df)
-            st.plotly_chart(chart_type_dist(type_data), use_container_width=True)
+            st.plotly_chart(chart_type_dist(type_data), width="stretch")
             observation(
                 "<strong>Observation:</strong> Low-grade (L) machines dominate (~60%), followed by "
                 "Medium (M) and High (H), mirroring realistic production floor composition."
@@ -109,7 +109,7 @@ def render(df, raw_df) -> None:
         st.markdown("---")
         section_header("Failure Rate by Machine Type", "Which machine grade fails more often?")
         by_type = compute_failure_by_type(df)
-        st.plotly_chart(chart_failure_by_type(by_type), use_container_width=True)
+        st.plotly_chart(chart_failure_by_type(by_type), width="stretch")
         observation(
             "<strong>Observation:</strong> Despite being fewer, High-grade (H) machines show "
             "the highest failure rate %, suggesting they operate under more demanding conditions."
@@ -126,7 +126,7 @@ def render(df, raw_df) -> None:
         )
 
         corr = compute_correlation_matrix(df)
-        st.plotly_chart(chart_correlation_heatmap(corr), use_container_width=True)
+        st.plotly_chart(chart_correlation_heatmap(corr), width="stretch")
 
         observation(
             "<strong>Key observations:</strong> "
@@ -146,7 +146,7 @@ def render(df, raw_df) -> None:
                 index=corr["labels"],
                 columns=corr["labels"],
             ).round(3)
-            st.dataframe(corr_df, use_container_width=True)
+            st.dataframe(corr_df, width="stretch")
 
     # ══════════════════════════════════════════════════════════════════════════
     # TAB 4 — SENSOR ANALYSIS
@@ -177,7 +177,7 @@ def render(df, raw_df) -> None:
                 yaxis=dict(gridcolor="#f1f5f9", title="Frequency"),
                 font=dict(family="Inter, sans-serif", size=11, color="#64748b"),
             )
-            st.plotly_chart(fig_at, use_container_width=True)
+            st.plotly_chart(fig_at, width="stretch")
 
         with col2:
             # Process temp histogram
@@ -197,7 +197,7 @@ def render(df, raw_df) -> None:
                 yaxis=dict(gridcolor="#f1f5f9", title="Frequency"),
                 font=dict(family="Inter, sans-serif", size=11, color="#64748b"),
             )
-            st.plotly_chart(fig_pt, use_container_width=True)
+            st.plotly_chart(fig_pt, width="stretch")
 
         observation(
             "<strong>Observation:</strong> Air temperature is centered around 300 K while process "
@@ -207,7 +207,7 @@ def render(df, raw_df) -> None:
         st.markdown("---")
         section_header("RPM Analysis", "Rotational speed frequency distribution.")
         rpm_data = compute_rpm_histogram(df)
-        st.plotly_chart(chart_rpm_histogram(rpm_data), use_container_width=True)
+        st.plotly_chart(chart_rpm_histogram(rpm_data), width="stretch")
         observation(
             "<strong>Observation:</strong> Rotational speed follows an approximately normal distribution "
             "centered around 1,500 rpm. Machines at extreme speeds (very low or very high RPM) "
@@ -232,7 +232,7 @@ def render(df, raw_df) -> None:
             yaxis=dict(gridcolor="#f1f5f9", title="Frequency"),
             font=dict(family="Inter, sans-serif", size=11, color="#64748b"),
         )
-        st.plotly_chart(fig_tq, use_container_width=True)
+        st.plotly_chart(fig_tq, width="stretch")
         observation(
             "<strong>Observation:</strong> Torque exhibits a roughly normal distribution centered "
             "around 40 Nm. High torque values (> 65 Nm) are associated with increased failure risk "
@@ -246,7 +246,7 @@ def render(df, raw_df) -> None:
         st.markdown("<br>", unsafe_allow_html=True)
         section_header("Failure Mode Breakdown", "Count of each specific failure type across the dataset.")
         mode_data = compute_failure_mode_breakdown(df)
-        st.plotly_chart(chart_failure_mode_breakdown(mode_data), use_container_width=True)
+        st.plotly_chart(chart_failure_mode_breakdown(mode_data), width="stretch")
         observation(
             "<strong>Observation:</strong> Heat Dissipation Failure (HDF) and Overstrain Failure "
             "(OSF) are the most frequent failure modes. Random Failure (RNF) is the rarest, as "
@@ -258,14 +258,14 @@ def render(df, raw_df) -> None:
         col1, col2 = st.columns(2)
         with col1:
             tw_data = compute_tool_wear_histogram(df)
-            st.plotly_chart(chart_tool_wear_histogram(tw_data), use_container_width=True)
+            st.plotly_chart(chart_tool_wear_histogram(tw_data), width="stretch")
             observation(
                 "<strong>Observation:</strong> Tool wear is nearly uniformly distributed (0–253 min), "
                 "capturing the full wear lifecycle from new to heavily worn."
             )
         with col2:
             twf_data = compute_tool_wear_by_failure(df)
-            st.plotly_chart(chart_tool_wear_failure(twf_data), use_container_width=True)
+            st.plotly_chart(chart_tool_wear_failure(twf_data), width="stretch")
             observation(
                 "<strong>Observation:</strong> Failure rates increase at higher wear levels, "
                 "particularly above ~200 minutes. Green bars = low risk; red bars = critical zones "
