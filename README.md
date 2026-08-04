@@ -47,6 +47,10 @@ Provides a persistent work-order register backed by SQLite. Users can:
 
 New work orders start as `Open` with `High` priority and include the failure reason, recommended action, creation timestamp, and update timestamp.
 
+### Module 7: Preventive Maintenance
+
+Provides recurring maintenance schedules backed by SQLite. Users can configure maintenance frequency, assign technicians, view upcoming and overdue schedules, add required checklists, generate preventive work orders, record completion history, review maintenance KPIs, and request AI recommendations grounded in the schedule and recorded history. Existing corrective work orders and Modules 1-6 remain available unchanged.
+
 ## Sidebar Filters
 
 The global filters limit the machine dataset used by Modules 1-4. Module 5 & 6 manages the persistent work-order database independently, so it remains available even when no machines match the dataset filters.

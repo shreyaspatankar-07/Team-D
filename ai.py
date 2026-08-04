@@ -77,6 +77,25 @@ def machine_context(machine: Any) -> str:
     )
 
 
+def preventive_maintenance_context(schedule: Any, history: Any, checklist: Any) -> str:
+    """Build grounded context for recommendations about one preventive schedule."""
+    history_rows = history.to_dict("records") if hasattr(history, "to_dict") else []
+    checklist_rows = checklist.to_dict("records") if hasattr(checklist, "to_dict") else []
+    return "\n".join(
+        [
+            f"Product ID: {schedule.product_id}",
+            f"Maintenance task: {schedule.title}",
+            f"Instructions: {schedule.description or 'None provided'}",
+            f"Frequency: {schedule.frequency}",
+            f"Next due date: {schedule.next_due_date}",
+            f"Assigned technician: {schedule.technician or 'Unassigned'}",
+            f"Checklist items: {', '.join(item['item'] for item in checklist_rows) if checklist_rows else 'None configured'}",
+            f"Completed history count: {len(history_rows)}",
+            f"Latest maintenance notes: {history_rows[0]['notes'] if history_rows else 'No completed maintenance history'}",
+        ]
+    )
+
+
 def ask_maintenance_assistant(question: str, context: str, model: str = OLLAMA_MODEL) -> str:
     """Ask Llama a maintenance question grounded only in the supplied record."""
     prompt = f"""You are a careful industrial maintenance assistant.

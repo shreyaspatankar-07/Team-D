@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import sqlite3
+import calendar
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from collections.abc import Iterator
 from typing import Any
@@ -29,6 +30,7 @@ FAILURE_LABELS = {
 }
 VALID_PRIORITIES = ("Low", "Medium", "High", "Critical")
 VALID_STATUSES = ("Open", "In Progress", "Closed")
+VALID_FREQUENCIES = ("Daily", "Weekly", "Monthly", "Quarterly", "Yearly")
 
 
 @contextmanager
@@ -57,6 +59,75 @@ def initialise_work_orders() -> None:
                 recommended_action TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
+            )
+            """
+        )
+        existing_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(work_orders)").fetchall()
+        }
+        for column, definition in {
+            "schedule_id": "INTEGER",
+            "technician": "TEXT",
+            "due_date": "TEXT",
+            "completed_at": "TEXT",
+            "work_order_type": "TEXT NOT NULL DEFAULT 'Corrective'",
+            "maintenance_notes": "TEXT NOT NULL DEFAULT ''",
+        }.items():
+            if column not in existing_columns:
+                connection.execute(f"ALTER TABLE work_orders ADD COLUMN {column} {definition}")
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS maintenance_schedules (
+                schedule_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                frequency TEXT NOT NULL,
+                next_due_date TEXT NOT NULL,
+                technician TEXT NOT NULL DEFAULT '',
+                active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS maintenance_checklists (
+                checklist_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                schedule_id INTEGER NOT NULL,
+                item TEXT NOT NULL,
+                required INTEGER NOT NULL DEFAULT 1,
+                active INTEGER NOT NULL DEFAULT 1,
+                FOREIGN KEY(schedule_id) REFERENCES maintenance_schedules(schedule_id)
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS maintenance_history (
+                history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                work_order_id INTEGER NOT NULL,
+                schedule_id INTEGER,
+                product_id TEXT NOT NULL,
+                technician TEXT NOT NULL DEFAULT '',
+                completed_at TEXT NOT NULL,
+                notes TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY(work_order_id) REFERENCES work_orders(order_id),
+                FOREIGN KEY(schedule_id) REFERENCES maintenance_schedules(schedule_id)
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS maintenance_checklist_results (
+                work_order_id INTEGER NOT NULL,
+                checklist_id INTEGER NOT NULL,
+                completed INTEGER NOT NULL DEFAULT 0,
+                completed_at TEXT,
+                PRIMARY KEY(work_order_id, checklist_id),
+                FOREIGN KEY(work_order_id) REFERENCES work_orders(order_id),
+                FOREIGN KEY(checklist_id) REFERENCES maintenance_checklists(checklist_id)
             )
             """
         )
@@ -143,6 +214,136 @@ def update_work_order(order_id: int, priority: str, status: str) -> None:
     initialise_work_orders()
     with _connection() as connection:
         connection.execute(
-            "UPDATE work_orders SET priority = ?, status = ?, updated_at = ? WHERE order_id = ?",
-            (priority, status, datetime.now().isoformat(timespec="seconds"), order_id),
+            "UPDATE work_orders SET priority = ?, status = ?, updated_at = ?, completed_at = CASE WHEN ? = 'Closed' THEN COALESCE(completed_at, ?) ELSE completed_at END WHERE order_id = ?",
+            (priority, status, datetime.now().isoformat(timespec="seconds"), status, datetime.now().isoformat(timespec="seconds") if status == "Closed" else None, order_id),
         )
+
+
+def _next_due(current: date, frequency: str) -> date:
+    if frequency not in VALID_FREQUENCIES:
+        raise ValueError("Invalid maintenance frequency.")
+    if frequency == "Daily":
+        return current + timedelta(days=1)
+    if frequency == "Weekly":
+        return current + timedelta(weeks=1)
+    if frequency == "Monthly":
+        month = current.month % 12 + 1
+        year = current.year + (current.month // 12)
+        return current.replace(year=year, month=month, day=min(current.day, calendar.monthrange(year, month)[1]))
+    if frequency == "Quarterly":
+        month_index = current.month - 1 + 3
+        year, month_zero = current.year + month_index // 12, month_index % 12
+        month = month_zero + 1
+        return current.replace(year=year, month=month, day=min(current.day, calendar.monthrange(year, month)[1]))
+    year = current.year + 1
+    return current.replace(year=year, day=min(current.day, calendar.monthrange(year, current.month)[1]))
+
+
+def create_schedule(product_id: str, title: str, description: str, frequency: str, next_due_date: str, technician: str = "") -> int:
+    if frequency not in VALID_FREQUENCIES:
+        raise ValueError("Invalid maintenance frequency.")
+    date.fromisoformat(next_due_date)
+    initialise_work_orders()
+    now = datetime.now().isoformat(timespec="seconds")
+    with _connection() as connection:
+        cursor = connection.execute(
+            "INSERT INTO maintenance_schedules (product_id, title, description, frequency, next_due_date, technician, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (product_id, title.strip(), description.strip(), frequency, next_due_date, technician.strip(), now, now),
+        )
+        return int(cursor.lastrowid)
+
+
+def get_schedules(active_only: bool = False) -> pd.DataFrame:
+    initialise_work_orders()
+    where = "WHERE active = 1" if active_only else ""
+    with _connection() as connection:
+        return pd.read_sql_query(f"SELECT * FROM maintenance_schedules {where} ORDER BY next_due_date, product_id", connection)
+
+
+def get_checklist(schedule_id: int) -> pd.DataFrame:
+    initialise_work_orders()
+    with _connection() as connection:
+        return pd.read_sql_query("SELECT * FROM maintenance_checklists WHERE schedule_id = ? AND active = 1 ORDER BY checklist_id", connection, params=(schedule_id,))
+
+
+def get_schedule_work_orders(schedule_id: int) -> pd.DataFrame:
+    initialise_work_orders()
+    with _connection() as connection:
+        return pd.read_sql_query("SELECT * FROM work_orders WHERE schedule_id = ? ORDER BY due_date DESC, created_at DESC", connection, params=(schedule_id,))
+
+
+def add_checklist_item(schedule_id: int, item: str, required: bool = True) -> None:
+    if not item.strip():
+        raise ValueError("Checklist item cannot be empty.")
+    initialise_work_orders()
+    with _connection() as connection:
+        connection.execute("INSERT INTO maintenance_checklists (schedule_id, item, required) VALUES (?, ?, ?)", (schedule_id, item.strip(), int(required)))
+
+
+def set_checklist_item(work_order_id: int, checklist_id: int, completed: bool) -> None:
+    initialise_work_orders()
+    with _connection() as connection:
+        connection.execute(
+            "INSERT INTO maintenance_checklist_results (work_order_id, checklist_id, completed, completed_at) VALUES (?, ?, ?, ?) ON CONFLICT(work_order_id, checklist_id) DO UPDATE SET completed = excluded.completed, completed_at = excluded.completed_at",
+            (work_order_id, checklist_id, int(completed), datetime.now().isoformat(timespec="seconds") if completed else None),
+        )
+
+
+def required_checklist_complete(work_order_id: int) -> bool:
+    initialise_work_orders()
+    with _connection() as connection:
+        pending = connection.execute(
+            "SELECT COUNT(*) FROM maintenance_checklists c JOIN work_orders w ON w.schedule_id = c.schedule_id LEFT JOIN maintenance_checklist_results r ON r.checklist_id = c.checklist_id AND r.work_order_id = w.order_id WHERE w.order_id = ? AND c.required = 1 AND c.active = 1 AND COALESCE(r.completed, 0) = 0",
+            (work_order_id,),
+        ).fetchone()[0]
+    return pending == 0
+
+
+def get_checklist_progress(work_order_id: int) -> pd.DataFrame:
+    initialise_work_orders()
+    with _connection() as connection:
+        return pd.read_sql_query(
+            "SELECT c.checklist_id, c.item, c.required, COALESCE(r.completed, 0) AS completed FROM maintenance_checklists c JOIN work_orders w ON w.schedule_id = c.schedule_id LEFT JOIN maintenance_checklist_results r ON r.checklist_id = c.checklist_id AND r.work_order_id = w.order_id WHERE w.order_id = ? AND c.active = 1 ORDER BY c.checklist_id",
+            connection,
+            params=(work_order_id,),
+        )
+
+
+def generate_due_work_orders(as_of: date | None = None) -> int:
+    initialise_work_orders()
+    as_of = as_of or date.today()
+    created = 0
+    with _connection() as connection:
+        schedules = connection.execute("SELECT * FROM maintenance_schedules WHERE active = 1 AND next_due_date <= ?", (as_of.isoformat(),)).fetchall()
+        for schedule in schedules:
+            existing = connection.execute("SELECT 1 FROM work_orders WHERE schedule_id = ? AND due_date = ?", (schedule["schedule_id"], schedule["next_due_date"])).fetchone()
+            if existing:
+                continue
+            now = datetime.now().isoformat(timespec="seconds")
+            cursor = connection.execute(
+                "INSERT INTO work_orders (product_id, failure_reason, priority, status, recommended_action, created_at, updated_at, schedule_id, technician, due_date, work_order_type) VALUES (?, ?, 'Medium', 'Open', ?, ?, ?, ?, ?, ?, 'Preventive')",
+                (schedule["product_id"], schedule["title"], schedule["description"] or "Complete the scheduled preventive maintenance checklist.", now, now, schedule["schedule_id"], schedule["technician"], schedule["next_due_date"]),
+            )
+            next_date = _next_due(date.fromisoformat(schedule["next_due_date"]), schedule["frequency"])
+            connection.execute("UPDATE maintenance_schedules SET next_due_date = ?, updated_at = ? WHERE schedule_id = ?", (next_date.isoformat(), now, schedule["schedule_id"]))
+            created += 1
+    return created
+
+
+def get_maintenance_history() -> pd.DataFrame:
+    initialise_work_orders()
+    with _connection() as connection:
+        return pd.read_sql_query("SELECT * FROM maintenance_history ORDER BY completed_at DESC", connection)
+
+
+def record_maintenance_completion(order_id: int, technician: str, notes: str) -> None:
+    initialise_work_orders()
+    if not required_checklist_complete(order_id):
+        raise ValueError("Complete all required checklist items before closing this work order.")
+    now = datetime.now().isoformat(timespec="seconds")
+    with _connection() as connection:
+        order = connection.execute("SELECT * FROM work_orders WHERE order_id = ?", (order_id,)).fetchone()
+        if not order:
+            raise ValueError("Work order not found.")
+        connection.execute("UPDATE work_orders SET status = 'Closed', technician = ?, completed_at = ?, maintenance_notes = ?, updated_at = ? WHERE order_id = ?", (technician.strip(), now, notes.strip(), now, order_id))
+        connection.execute("INSERT INTO maintenance_history (work_order_id, schedule_id, product_id, technician, completed_at, notes) VALUES (?, ?, ?, ?, ?, ?)", (order_id, order["schedule_id"], order["product_id"], technician.strip(), now, notes.strip()))

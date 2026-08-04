@@ -1,12 +1,13 @@
 from pathlib import Path
+from datetime import date
 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from ai import OLLAMA_MODEL, ask_maintenance_assistant, get_available_models, machine_context, stream_maintenance_report
-from work_orders import VALID_PRIORITIES, VALID_STATUSES, create_work_order, delete_work_order, failure_details, get_work_orders, initialise_work_orders, update_work_order
+from ai import OLLAMA_MODEL, ask_maintenance_assistant, get_available_models, machine_context, preventive_maintenance_context, stream_maintenance_report
+from work_orders import VALID_FREQUENCIES, VALID_PRIORITIES, VALID_STATUSES, add_checklist_item, create_schedule, create_work_order, delete_work_order, failure_details, generate_due_work_orders, get_checklist, get_checklist_progress, get_maintenance_history, get_schedules, get_schedule_work_orders, get_work_orders, initialise_work_orders, record_maintenance_completion, required_checklist_complete, set_checklist_item, update_work_order
 
 
 DATA_FILE = Path("ai4i2020.csv")
@@ -687,6 +688,157 @@ def render_work_order_queue() -> None:
                 if st.button("Save", key=f"save_{order.order_id}", width="stretch"):
                     update_work_order(order.order_id, priority, status)
                     st.rerun()
+
+
+def render_preventive_maintenance(machine_data: pd.DataFrame) -> None:
+    if machine_data.empty:
+        st.warning("No machines match the current sidebar filters. Adjust the filters to create a schedule for a machine.")
+        return
+    initialise_work_orders()
+    generated = generate_due_work_orders()
+    schedules = get_schedules(active_only=True)
+    today = date.today().isoformat()
+    upcoming = schedules[schedules["next_due_date"] >= today] if not schedules.empty else schedules
+    overdue = schedules[schedules["next_due_date"] < today] if not schedules.empty else schedules
+    preventive_orders = get_work_orders(search="")
+    if not preventive_orders.empty:
+        preventive_orders = preventive_orders[preventive_orders["work_order_type"] == "Preventive"]
+    open_preventive = int((preventive_orders["status"] != "Closed").sum()) if not preventive_orders.empty else 0
+    history = get_maintenance_history()
+
+    st.markdown(
+        """
+        <section class="hero">
+            <div><div class="eyebrow">Module 7</div><h1>Preventive Maintenance</h1>
+            <p>Schedule recurring maintenance, manage checklists, and track execution history.</p></div>
+            <div class="badge">Schedule-driven maintenance</div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+    if generated:
+        st.success(f"Generated {generated} preventive work order(s) from due schedules.")
+
+    kpi_one, kpi_two, kpi_three, kpi_four, kpi_five = st.columns(5, gap="medium")
+    with kpi_one:
+        metric_card("Active schedules", f"{len(schedules):,}", "Recurring plans")
+    with kpi_two:
+        metric_card("Due soon", f"{len(upcoming):,}", "Upcoming maintenance")
+    with kpi_three:
+        metric_card("Overdue", f"{len(overdue):,}", "Needs attention", warn=len(overdue) > 0)
+    with kpi_four:
+        metric_card("Open preventive", f"{open_preventive:,}", "Generated work orders", warn=open_preventive > 0)
+    with kpi_five:
+        metric_card("Completed", f"{len(history):,}", "Maintenance history")
+
+    create_tab, schedule_tab, history_tab = st.tabs(["Create schedule", "Schedules and checklists", "Maintenance history"])
+    with create_tab:
+        with st.form("create_maintenance_schedule"):
+            form_one, form_two = st.columns(2)
+            with form_one:
+                machine_options = machine_data[["Product ID", "Type", "Status"]].copy()
+                machine_options["Product ID"] = machine_options["Product ID"].astype(str)
+                machine_options = machine_options.drop_duplicates("Product ID").sort_values("Product ID")
+                product_ids = machine_options["Product ID"].tolist()
+                machine_labels = {
+                    row["Product ID"]: f"{row['Product ID']} · {row['Type']} machine · {row['Status']}"
+                    for _, row in machine_options.iterrows()
+                }
+                product_id = st.selectbox(
+                    "Product ID",
+                    product_ids,
+                    format_func=machine_labels.get,
+                    help="Type to search the product list, filtered by the sidebar selections.",
+                )
+                title = st.text_input("Maintenance task", placeholder="Lubrication and inspection")
+                frequency = st.selectbox("Frequency", VALID_FREQUENCIES)
+                next_due = st.date_input("First due date", value=date.today())
+            with form_two:
+                technician = st.text_input("Assigned technician")
+                description = st.text_area("Instructions or recommendation", height=125)
+                selected_machine = machine_options[machine_options["Product ID"].eq(product_id)].iloc[0]
+                st.caption(f"Machine type: {selected_machine['Type']} · Health: {selected_machine['Status']}")
+                st.caption("Schedules automatically generate one preventive work order when due.")
+            submitted = st.form_submit_button("Create schedule", type="primary")
+        if submitted:
+            if not product_id.strip() or not title.strip():
+                st.error("Product ID and maintenance task are required.")
+            else:
+                create_schedule(product_id, title, description, frequency, next_due.isoformat(), technician)
+                st.success("Preventive maintenance schedule created.")
+                st.rerun()
+
+    with schedule_tab:
+        if schedules.empty:
+            st.info("No preventive schedules exist yet.")
+        else:
+            st.subheader("Maintenance calendar")
+            calendar_view = schedules[["next_due_date", "product_id", "title", "frequency", "technician"]].rename(columns={"next_due_date": "Due date", "product_id": "Product ID", "title": "Task", "frequency": "Frequency", "technician": "Technician"})
+            st.dataframe(calendar_view, width="stretch", hide_index=True)
+            if not overdue.empty:
+                st.warning(f"{len(overdue)} schedule(s) are overdue.")
+            for schedule in schedules.itertuples(index=False):
+                with st.expander(f"{schedule.title} · {schedule.product_id} · due {schedule.next_due_date}"):
+                    st.write(schedule.description or "No additional instructions provided.")
+                    st.caption(f"Frequency: {schedule.frequency} · Technician: {schedule.technician or 'Unassigned'}")
+                    if st.button("Generate AI maintenance recommendation", key=f"recommend_{schedule.schedule_id}"):
+                        installed_models = get_available_models()
+                        model = OLLAMA_MODEL if OLLAMA_MODEL in installed_models else (installed_models[0] if installed_models else OLLAMA_MODEL)
+                        context = preventive_maintenance_context(schedule, history, get_checklist(schedule.schedule_id))
+                        with st.spinner("Preparing a schedule-based recommendation..."):
+                            try:
+                                recommendation = ask_maintenance_assistant("Review this preventive maintenance schedule and recommend practical next actions, priority, and any checklist improvements.", context, model)
+                                st.session_state[f"recommendation_{schedule.schedule_id}"] = recommendation
+                            except ConnectionError as error:
+                                st.warning(str(error))
+                    if st.session_state.get(f"recommendation_{schedule.schedule_id}"):
+                        st.info(st.session_state[f"recommendation_{schedule.schedule_id}"])
+                    checklist = get_checklist(schedule.schedule_id)
+                    st.markdown("**Checklist**")
+                    if checklist.empty:
+                        st.caption("No checklist items configured.")
+                    else:
+                        for item in checklist.itertuples(index=False):
+                            st.write(f"{'Required' if item.required else 'Optional'} · {item.item}")
+                    with st.form(f"checklist_{schedule.schedule_id}"):
+                        checklist_item = st.text_input("Add checklist item", key=f"new_item_{schedule.schedule_id}")
+                        required = st.checkbox("Required item", value=True, key=f"required_{schedule.schedule_id}")
+                        if st.form_submit_button("Add checklist item"):
+                            if checklist_item.strip():
+                                add_checklist_item(schedule.schedule_id, checklist_item, required)
+                                st.success("Checklist item added.")
+                                st.rerun()
+                            else:
+                                st.error("Enter a checklist item first.")
+                    schedule_orders = get_schedule_work_orders(schedule.schedule_id)
+                    if not schedule_orders.empty:
+                        st.markdown("**Generated work orders**")
+                        st.dataframe(schedule_orders[["order_id", "status", "technician", "due_date", "completed_at"]], width="stretch", hide_index=True)
+                        for order in schedule_orders.itertuples(index=False):
+                            progress = get_checklist_progress(order.order_id)
+                            if not progress.empty:
+                                st.markdown(f"Checklist for work order #{order.order_id}")
+                                for item in progress.itertuples(index=False):
+                                    checked = st.checkbox(item.item, value=bool(item.completed), key=f"item_{order.order_id}_{item.checklist_id}")
+                                    if checked != bool(item.completed):
+                                        set_checklist_item(order.order_id, item.checklist_id, checked)
+                            if order.status != "Closed":
+                                with st.form(f"complete_{order.order_id}"):
+                                    completion_technician = st.text_input("Technician", value=order.technician or schedule.technician, key=f"tech_{order.order_id}")
+                                    notes = st.text_area("Completion notes", key=f"notes_{order.order_id}")
+                                    if st.form_submit_button("Complete maintenance"):
+                                        try:
+                                            record_maintenance_completion(order.order_id, completion_technician, notes)
+                                            st.success("Maintenance completed and recorded in history.")
+                                            st.rerun()
+                                        except ValueError as error:
+                                            st.error(str(error))
+
+    with history_tab:
+        if history.empty:
+            st.info("Completed preventive maintenance will appear here.")
+        else:
+            st.dataframe(history, width="stretch", hide_index=True)
             confirm_delete = st.checkbox("Confirm deletion", key=f"confirm_delete_{order.order_id}")
             if st.button("Delete work order", key=f"delete_{order.order_id}", disabled=not confirm_delete):
                 if delete_work_order(order.order_id):
@@ -823,7 +975,7 @@ df = load_data()
 with st.sidebar:
     st.title("Agentic Facility Operations ")
     st.caption("Module navigation")
-    section = st.radio("Section", ["Module 1: EDA", "Module 2: Dashboard", "Module 3: Machine Explorer", "Module 4: AI Assistant", "Module 5 & 6: Work Order Management"])
+    section = st.radio("Section", ["Module 1: EDA", "Module 2: Dashboard", "Module 3: Machine Explorer", "Module 4: AI Assistant", "Module 5 & 6: Work Order Management", "Module 7: Preventive Maintenance"])
 
     st.divider()
     st.caption("Filters")
@@ -857,7 +1009,7 @@ if "Any failure mode" not in selected_failure_modes:
     if selected_mode_columns:
         filtered_df = filtered_df[filtered_df[selected_mode_columns].eq(1).any(axis=1)].copy()
 
-if filtered_df.empty and section != "Module 5 & 6: Work Order Management":
+if filtered_df.empty and section not in ("Module 5 & 6: Work Order Management", "Module 7: Preventive Maintenance"):
     st.warning("No records match the current filters.")
     st.stop()
 
@@ -883,5 +1035,7 @@ elif section == "Module 5 & 6: Work Order Management":
     )
     with st.container(border=True):
         render_work_order_queue()
+elif section == "Module 7: Preventive Maintenance":
+    render_preventive_maintenance(filtered_df)
 else:
     render_ai_assistant(filtered_df)
