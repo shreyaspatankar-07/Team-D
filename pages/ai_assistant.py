@@ -193,7 +193,7 @@ def render(df, raw_df) -> None:
     _ensure_state()
 
     page_header(
-        "🤖",
+        "",
         "AI Maintenance Assistant",
         "Powered by Llama 3.2 via Ollama — full machine context injected automatically.",
     )
@@ -205,7 +205,7 @@ def render(df, raw_df) -> None:
             <div style="background:#fff7f7; border:1px solid #fca5a5; border-radius:12px;
                         padding:20px 24px; margin-bottom:20px;">
                 <div style="font-size:1.05rem; font-weight:700; color:#b91c1c; margin-bottom:8px;">
-                    ⚠️ Ollama Server Unavailable
+                    Ollama Server Unavailable
                 </div>
                 <div style="font-size:0.86rem; color:#7f1d1d; line-height:1.6;">
                     The local Ollama server is not running or not reachable at
@@ -284,13 +284,13 @@ def render(df, raw_df) -> None:
             btn_col1, btn_col2 = st.columns([3, 1])
             with btn_col1:
                 generate_btn = st.button(
-                    "🔄 Refresh Report" if cached_report else "⚡ Generate Report",
+                    "Refresh Report" if cached_report else "Generate Report",
                     type="primary",
                     width="stretch",
                     key=f"gen_{machine_id}",
                 )
             with btn_col2:
-                if cached_report and st.button("🗑️ Clear", width="stretch", key=f"clear_{machine_id}"):
+                if cached_report and st.button("Clear", width="stretch", key=f"clear_{machine_id}"):
                     st.session_state["ai_reports"].pop(machine_id, None)
                     st.session_state["ai_report_metas"].pop(machine_id, None)
                     st.rerun()
@@ -316,16 +316,13 @@ def render(df, raw_df) -> None:
 
             else:
                 st.markdown(
-                    f"""
-                    <div style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:10px;
-                                padding:30px 20px; text-align:center; color:#94a3b8;">
-                        <div style="font-size:2rem; margin-bottom:8px;">📄</div>
-                        <div style="font-size:0.88rem; font-weight:500; color:#64748b;">
-                            Click <strong>Generate Report</strong> to create an AI-powered
-                            maintenance report for <strong>{machine_id}</strong>.
-                        </div>
-                    </div>
-                    """,
+                    '<div style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:10px;'
+                    ' padding:30px 20px; text-align:center; color:#94a3b8;">'
+                    '<div style="font-size:0.88rem; font-weight:500; color:#64748b;">'
+                    f'Click <strong>Generate Report</strong> to create an AI-powered'
+                    f' maintenance report for <strong>{machine_id}</strong>.'
+                    '</div>'
+                    '</div>',
                     unsafe_allow_html=True,
                 )
 
@@ -355,7 +352,7 @@ def render(df, raw_df) -> None:
         section_header("Conversation", f"Full context of {machine_id} injected into every message.")
     with clear_btn_col:
         st.write("")
-        if st.button("🗑️ Clear", key=f"clear_chat_{machine_id}", width="stretch"):
+        if st.button("Clear", key=f"clear_chat_{machine_id}", width="stretch"):
             st.session_state["chat_histories"][machine_id] = []
             st.rerun()
 

@@ -68,12 +68,12 @@ def _render_kpi_cards() -> None:
     kpis = db.fetch_kpis()
 
     kpi_defs = [
-        ("📦 Total Orders",  kpis.get("total", 0),             "#3b82f6"),
-        ("🟡 Open",          kpis.get("open_count", 0),        "#f59e0b"),
-        ("🔵 Assigned",      kpis.get("assigned_count", 0),    "#3b82f6"),
-        ("🔄 In Progress",   kpis.get("in_progress_count", 0), "#8b5cf6"),
-        ("✅ Completed",     kpis.get("completed_count", 0),   "#22c55e"),
-        ("🔒 Closed",        kpis.get("closed_count", 0),      "#64748b"),
+        ("Total Orders",  kpis.get("total", 0),             "#3b82f6"),
+        ("Open",          kpis.get("open_count", 0),        "#f59e0b"),
+        ("Assigned",      kpis.get("assigned_count", 0),    "#3b82f6"),
+        ("In Progress",   kpis.get("in_progress_count", 0), "#8b5cf6"),
+        ("Completed",     kpis.get("completed_count", 0),   "#22c55e"),
+        ("Closed",        kpis.get("closed_count", 0),      "#64748b"),
     ]
 
     cols = st.columns(6)
@@ -172,7 +172,7 @@ def _render_edit_panel(wo: dict) -> None:
                     padding:20px 22px; margin:8px 0 16px 0;">
             <div style="font-size:0.8rem; font-weight:700; color:#64748b; text-transform:uppercase;
                         letter-spacing:0.06em; margin-bottom:14px;">
-                ✏ Editing Work Order #{wo_id}
+                Editing Work Order #{wo_id}
             </div>
             <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:0.83rem; margin-bottom:14px;">
                 <span style="color:#64748b;">Product: <strong style="color:#1e293b;">{wo['product_id']}</strong></span>
@@ -240,9 +240,9 @@ def _render_edit_panel(wo: dict) -> None:
 
         save_col, cancel_col, _ = st.columns([1, 1, 4])
         with save_col:
-            save_clicked = st.form_submit_button("💾 Save", type="primary", width="stretch")
+            save_clicked = st.form_submit_button("Save", type="primary", width="stretch")
         with cancel_col:
-            cancel_clicked = st.form_submit_button("✖ Cancel", type="secondary", width="stretch")
+            cancel_clicked = st.form_submit_button("Cancel", type="secondary", width="stretch")
 
     if save_clicked:
         new_tech = st.session_state.get(tech_key, "")
@@ -384,7 +384,7 @@ def _render_action_table(df_filtered: pd.DataFrame) -> None:
             y_col, n_col, _ = st.columns([1, 1, 6])
             with y_col:
                 if st.button(
-                    "✅ Confirm Delete",
+                    "Confirm Delete",
                     key=f"wom_yes_del_{wo_id}",
                     type="primary",
                     width="stretch",
@@ -394,7 +394,7 @@ def _render_action_table(df_filtered: pd.DataFrame) -> None:
                     st.success(f"Work Order #{wo_id} deleted.")
                     st.rerun()
             with n_col:
-                if st.button("❌ Cancel", key=f"wom_no_del_{wo_id}", width="stretch"):
+                if st.button("Cancel", key=f"wom_no_del_{wo_id}", width="stretch"):
                     st.session_state.pop(confirm_del_key, None)
                     st.rerun()
 
@@ -410,7 +410,7 @@ def render() -> None:
     """Render the complete Work Order Management page."""
 
     page_header(
-        "📋",
+        "",
         "Work Order Management",
         "View, search, filter, update, and delete maintenance work orders.",
     )
@@ -426,7 +426,7 @@ def render() -> None:
 
     if not all_orders:
         st.info(
-            "📭 No work orders found. Use the **Work Order Creation** page to add your first record.",
+            "No work orders found. Use the **Work Order Creation** page to add your first record.",
             icon=None,
         )
         return
@@ -442,7 +442,7 @@ def render() -> None:
     search_col, _ = st.columns([3, 1])
     with search_col:
         search_query = st.text_input(
-            "🔍 Search",
+            "Search",
             placeholder="Search by WO ID, Product ID, Failure Type, Technician Type, or Technician…",
             key="wom_search",
             label_visibility="collapsed",
@@ -523,7 +523,7 @@ def render() -> None:
     section_header(
         "Work Orders",
         f"{len(df_filtered):,} record{'s' if len(df_filtered) != 1 else ''} shown. "
-        "Use ✏ to edit and 🗑 to delete.",
+        "Use the edit and delete buttons to manage records.",
     )
 
     _render_action_table(df_filtered)
@@ -544,7 +544,7 @@ def render() -> None:
             "created_date": "Created", "updated_date": "Last Updated",
         }, inplace=True)
         st.download_button(
-            label="⬇ Export to CSV",
+            label="Export to CSV",
             data=export_df.to_csv(index=False).encode("utf-8"),
             file_name="work_orders_export.csv",
             mime="text/csv",

@@ -41,17 +41,17 @@ def render(df, raw_df) -> None:
     """Render the Data Analytics page."""
 
     page_header(
-        "📊",
+        "",
         "Data Analytics",
         "Comprehensive exploratory analysis of sensor data, failure patterns, and machine characteristics.",
     )
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📁 Overview",
-        "📊 Distributions",
-        "🔗 Correlations",
-        "🌡️ Sensor Analysis",
-        "⚠️ Failure Analysis",
+        "Overview",
+        "Distributions",
+        "Correlations",
+        "Sensor Analysis",
+        "Failure Analysis",
     ])
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -139,7 +139,7 @@ def render(df, raw_df) -> None:
         st.markdown("<br>", unsafe_allow_html=True)
 
         # Correlation table in expandable section
-        with st.expander("📋 View Raw Correlation Values"):
+        with st.expander("View Raw Correlation Values"):
             import pandas as pd
             corr_df = pd.DataFrame(
                 corr["values"],

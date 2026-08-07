@@ -77,18 +77,19 @@ with st.sidebar:
         st.session_state["page"] = page_key
 
     NAV_ITEMS = [
-        ("dashboard",           "🏠  Dashboard"),
-        ("analytics",           "📊  Data Analytics"),
-        ("explorer",            "🔍  Machine Explorer"),
-        ("ai_assistant",        "🤖  AI Assistant"),
-        ("work_order_creation",  "🔧  Work Order Creation"),
-        ("work_order_management","📋  Work Order Management"),
+        ("dashboard",              "🏠  Dashboard"),
+        ("analytics",              "📊  Data Analytics"),
+        ("explorer",               "🔍  Machine Explorer"),
+        ("ai_assistant",           "🤖  AI Assistant"),
+        ("work_order_creation",    "🔧  Work Order Creation"),
+        ("work_order_management",  "📋  Work Order Management"),
+        ("preventive_maintenance", "🛡️  Preventive Maintenance"),
     ]
 
     # Ollama status warning (only shown when auto-start failed)
     if not st.session_state.get("_ollama_available", True):
         st.warning(
-            "⚠️ Ollama could not be started automatically. "
+            "Ollama could not be started automatically. "
             "Please ensure Ollama is installed and available on your PATH.\n\n"
             "The AI Assistant will be unavailable until Ollama is running.",
             icon=None,
@@ -177,3 +178,7 @@ elif current_page == "work_order_creation":
 elif current_page == "work_order_management":
     from pages import work_order_management
     work_order_management.render()
+
+elif current_page == "preventive_maintenance":
+    from pages import preventive_maintenance
+    preventive_maintenance.render(raw_df)

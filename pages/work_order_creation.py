@@ -164,7 +164,7 @@ def render(raw_df: pd.DataFrame) -> None:
 
     # ── Page Header ────────────────────────────────────────────────────────────
     page_header(
-        "🔧",
+        "",
         "Work Order Creation",
         "Generate and record maintenance work orders for machine failures.",
     )
@@ -173,7 +173,7 @@ def render(raw_df: pd.DataFrame) -> None:
     if st.session_state.get("woc_last_saved_id"):
         wo_id = st.session_state["woc_last_saved_id"]
         st.success(
-            f"✅  Work Order **#{wo_id}** created successfully and saved to the database.",
+            f"Work Order **#{wo_id}** created successfully and saved to the database.",
             icon=None,
         )
 
@@ -276,13 +276,13 @@ def render(raw_df: pd.DataFrame) -> None:
             btn_col1, btn_col2, _ = st.columns([1.2, 1, 2.8])
             with btn_col1:
                 submitted = st.form_submit_button(
-                    "💾  Save Work Order",
+                    "Save Work Order",
                     type="primary",
                     width="stretch",
                 )
             with btn_col2:
                 reset_clicked = st.form_submit_button(
-                    "🔄  Reset",
+                    "Reset",
                     type="secondary",
                     width="stretch",
                 )
@@ -324,7 +324,7 @@ def render(raw_df: pd.DataFrame) -> None:
             <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px;
                         padding:18px 16px; font-size:0.83rem; color:#1e3a5f; line-height:1.7;">
                 <div style="font-weight:700; font-size:0.9rem; margin-bottom:10px; color:#1d4ed8;">
-                    📋 Quick Guide
+                    Quick Guide
                 </div>
                 <ul style="margin:0; padding-left:16px;">
                     <li>Fields marked with <strong>*</strong> are required.</li>
@@ -345,7 +345,7 @@ def render(raw_df: pd.DataFrame) -> None:
             <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px;
                         padding:18px 16px; font-size:0.82rem; color:#1e293b; line-height:1.7;">
                 <div style="font-weight:700; font-size:0.88rem; margin-bottom:10px; color:#334155;">
-                    🔍 Failure Type Codes
+                    Failure Type Codes
                 </div>
                 <table style="width:100%; border-collapse:collapse;">
                     <tr><td style="color:#64748b; padding:3px 0; width:40%;">TWF</td><td style="font-weight:600;">Tool Wear</td></tr>
@@ -366,7 +366,7 @@ def render(raw_df: pd.DataFrame) -> None:
             <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px;
                         padding:18px 16px; font-size:0.82rem; color:#1e293b; line-height:1.7;">
                 <div style="font-weight:700; font-size:0.88rem; margin-bottom:10px; color:#334155;">
-                    ⚡ Priority Levels
+                    Priority Levels
                 </div>
                 <table style="width:100%; border-collapse:collapse;">
                     <tr>

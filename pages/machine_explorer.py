@@ -330,7 +330,7 @@ def render(df, raw_df) -> None:
     """Render the Machine Explorer page."""
 
     page_header(
-        "🔍",
+        "",
         "Machine Explorer",
         "Select any machine to explore its live sensor readings, health status, and maintenance forecast.",
     )
@@ -396,7 +396,7 @@ def render(df, raw_df) -> None:
     wo_btn_col, _ = st.columns([2, 5])
     with wo_btn_col:
         if st.button(
-            "🔧  Create Work Order",
+            "Create Work Order",
             key="explorer_create_wo_btn",
             type="primary",
             width="stretch",

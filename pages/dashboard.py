@@ -27,7 +27,7 @@ def render(df, raw_df) -> None:
 
     # ── Page Header ────────────────────────────────────────────────────────────
     page_header(
-        "🏠",
+        "",
         "Industrial Monitoring Dashboard",
         "Real-time overview of the AI4I 2020 predictive maintenance dataset.",
     )
