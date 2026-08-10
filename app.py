@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from ai import OLLAMA_MODEL, ask_maintenance_assistant, get_available_models, machine_context, preventive_maintenance_context, stream_maintenance_report
+from auth import authenticate_user, initialise_users, register_user
 from work_orders import VALID_FREQUENCIES, VALID_PRIORITIES, VALID_STATUSES, add_checklist_item, create_schedule, create_work_order, delete_work_order, failure_details, generate_due_work_orders, get_checklist, get_checklist_progress, get_maintenance_history, get_schedules, get_schedule_work_orders, get_work_orders, initialise_work_orders, record_maintenance_completion, required_checklist_complete, set_checklist_item, update_work_order
 
 
@@ -61,6 +62,16 @@ st.markdown(
     [data-testid="stMainMenu"] button svg { fill: #17212f !important; stroke: #17212f !important; }
     [data-testid="stSidebar"] { background: #171c2b; border-right: 1px solid rgba(255,255,255,.08); }
     [data-testid="stSidebar"] * { color: #f8fafc; }
+    [data-testid="stSidebar"] button {
+        background: #2f6f73 !important;
+        border-color: #75c893 !important;
+        color: #ffffff !important;
+    }
+    [data-testid="stSidebar"] button * { color: #ffffff !important; }
+    [data-testid="stSidebar"] button:hover {
+        background: #3d8589 !important;
+        border-color: #9ad9b0 !important;
+    }
     [data-testid="stSidebar"] [data-baseweb="tag"] { background: #2f6f73; }
     .shell {
         background: rgba(255,255,255,.86);
@@ -189,6 +200,18 @@ st.markdown(
     [data-testid="stAppViewContainer"] .js-plotly-plot .axis-title text { fill: #17212f !important; }
     .section-gap { height: .7rem; }
     div[data-testid="stVerticalBlock"] { gap: 1rem; }
+    .login-shell {
+        max-width: 560px;
+        margin: 4rem auto 0;
+        background: rgba(255,255,255,.92);
+        border: 1px solid rgba(255,255,255,.72);
+        border-radius: 22px;
+        box-shadow: 0 24px 70px rgba(23,33,47,.16);
+        padding: 2.1rem 2.2rem 2.3rem;
+    }
+    .login-heading { color: var(--ink); font-size: 2rem; line-height: 1.1; margin: .25rem 0 .45rem; }
+    .login-copy { color: var(--muted); margin: 0 0 1.2rem; }
+    .login-note { color: var(--muted); font-size: .82rem; text-align: center; margin-top: 1rem; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -230,6 +253,52 @@ def show_chart(fig, height: int = 320) -> None:
     fig.update_xaxes(showgrid=False, zeroline=False, tickfont=dict(color="#17212f"), title_font=dict(color="#17212f"))
     fig.update_yaxes(gridcolor="#edf1f0", zeroline=False, tickfont=dict(color="#17212f"), title_font=dict(color="#17212f"))
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
+def render_login() -> None:
+    initialise_users()
+    left, center, right = st.columns([1, 2, 1])
+    with center:
+        st.markdown(
+            """
+            <div class="login-shell">
+                <div class="eyebrow">Agentic Facility Operations</div>
+                <h1 class="login-heading">Welcome back</h1>
+                <p class="login-copy">Sign in to review machine health and manage maintenance operations.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        with st.form("login_form"):
+            username = st.text_input("Username", autocomplete="username")
+            password = st.text_input("Password", type="password", autocomplete="current-password")
+            submitted = st.form_submit_button("Sign in", type="primary", width="stretch")
+            if submitted:
+                authenticated, message, display_name = authenticate_user(username, password)
+                if authenticated:
+                    st.session_state.authenticated = True
+                    st.session_state.display_name = display_name
+                    st.rerun()
+                st.error(message)
+
+        with st.expander("Create an account"):
+            with st.form("registration_form"):
+                name = st.text_input("Full name")
+                new_username = st.text_input("New username")
+                new_password = st.text_input("New password", type="password")
+                confirm_password = st.text_input("Confirm password", type="password")
+                register = st.form_submit_button("Create account", width="stretch")
+                if register:
+                    if new_password != confirm_password:
+                        st.error("Passwords do not match.")
+                    else:
+                        created, message = register_user(name, new_username, new_password)
+                        if created:
+                            st.success(message)
+                        else:
+                            st.error(message)
+
+        st.markdown('<p class="login-note">Access is limited to registered facility operations users.</p>', unsafe_allow_html=True)
 
 
 def render_eda(data: pd.DataFrame, full_data: pd.DataFrame) -> None:
@@ -970,10 +1039,19 @@ def render_ai_assistant(data: pd.DataFrame) -> None:
                     st.markdown(answer)
                 st.session_state.ai_messages.append({"role": "assistant", "content": answer})
 
+if not st.session_state.get("authenticated", False):
+    render_login()
+    st.stop()
+
 df = load_data()
 
 with st.sidebar:
     st.title("Agentic Facility Operations ")
+    st.caption(f"Signed in as {st.session_state.get('display_name', 'User')}")
+    if st.button("Sign out", width="stretch"):
+        st.session_state.authenticated = False
+        st.session_state.pop("display_name", None)
+        st.rerun()
     st.caption("Module navigation")
     section = st.radio("Section", ["Module 1: EDA", "Module 2: Dashboard", "Module 3: Machine Explorer", "Module 4: AI Assistant", "Module 5 & 6: Work Order Management", "Module 7: Preventive Maintenance"])
 

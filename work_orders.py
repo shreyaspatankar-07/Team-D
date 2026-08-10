@@ -317,13 +317,20 @@ def generate_due_work_orders(as_of: date | None = None) -> int:
         schedules = connection.execute("SELECT * FROM maintenance_schedules WHERE active = 1 AND next_due_date <= ?", (as_of.isoformat(),)).fetchall()
         for schedule in schedules:
             existing = connection.execute("SELECT 1 FROM work_orders WHERE schedule_id = ? AND due_date = ?", (schedule["schedule_id"], schedule["next_due_date"])).fetchone()
-            if existing:
+            active_order = connection.execute(
+                "SELECT 1 FROM work_orders WHERE product_id = ? AND status != 'Closed'",
+                (schedule["product_id"],),
+            ).fetchone()
+            if existing or active_order:
                 continue
             now = datetime.now().isoformat(timespec="seconds")
-            cursor = connection.execute(
-                "INSERT INTO work_orders (product_id, failure_reason, priority, status, recommended_action, created_at, updated_at, schedule_id, technician, due_date, work_order_type) VALUES (?, ?, 'Medium', 'Open', ?, ?, ?, ?, ?, ?, 'Preventive')",
-                (schedule["product_id"], schedule["title"], schedule["description"] or "Complete the scheduled preventive maintenance checklist.", now, now, schedule["schedule_id"], schedule["technician"], schedule["next_due_date"]),
-            )
+            try:
+                connection.execute(
+                    "INSERT INTO work_orders (product_id, failure_reason, priority, status, recommended_action, created_at, updated_at, schedule_id, technician, due_date, work_order_type) VALUES (?, ?, 'Medium', 'Open', ?, ?, ?, ?, ?, ?, 'Preventive')",
+                    (schedule["product_id"], schedule["title"], schedule["description"] or "Complete the scheduled preventive maintenance checklist.", now, now, schedule["schedule_id"], schedule["technician"], schedule["next_due_date"]),
+                )
+            except sqlite3.IntegrityError:
+                continue
             next_date = _next_due(date.fromisoformat(schedule["next_due_date"]), schedule["frequency"])
             connection.execute("UPDATE maintenance_schedules SET next_due_date = ?, updated_at = ? WHERE schedule_id = ?", (next_date.isoformat(), now, schedule["schedule_id"]))
             created += 1
