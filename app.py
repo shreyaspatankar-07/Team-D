@@ -7,6 +7,7 @@ from utils.styles import inject_css
 from utils.data import load_data, filter_dataframe, compute_kpis
 from utils import db
 from utils import ollama_service
+from utils import auth
 
 # Ensure SQLite tables exist before any page renders
 db.init_db()
@@ -19,8 +20,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
-inject_css()
 
 # ── Data Loading ──────────────────────────────────────────────────────────────
 
@@ -38,6 +37,20 @@ if "ai_report_metas" not in st.session_state:
     st.session_state["ai_report_metas"] = {}
 if "chat_histories"  not in st.session_state:
     st.session_state["chat_histories"] = {}
+
+# ── Auth Gate ─────────────────────────────────────────────────────────────────
+# If the user is not logged in, render the Login page and stop execution.
+# inject_css() is intentionally NOT called before this gate — the login page
+# is fully self-contained with its own CSS and must not inherit dashboard styles.
+
+if not auth.is_logged_in():
+    from pages import login as login_page
+    login_page.render()
+    st.stop()
+
+# ── Global CSS (dashboard only — injected after auth gate) ────────────────────
+inject_css()
+
 
 # ── Ollama Auto-start ──────────────────────────────────────────────────────────────
 # Run only once for the entire application lifecycle.
@@ -67,6 +80,31 @@ with st.sidebar:
                 </div>
             </div>
             <div style="font-size:0.7rem; color:#64748b;">AI4I 2020 Predictive Maintenance</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ── Logged-in User Badge ──────────────────────────────────────────────────
+    _current_user = auth.get_current_user()
+    _user_icon = "🛡️" if _current_user == "admin" else "👷"
+    _user_label = auth.USERS.get(_current_user, _current_user)
+    st.markdown(
+        f"""
+        <div style="
+            display:flex; align-items:center; gap:9px;
+            background:rgba(59,130,246,0.12);
+            border:1px solid rgba(59,130,246,0.25);
+            border-radius:10px;
+            padding:9px 13px;
+            margin-bottom:14px;
+        ">
+            <div style="font-size:1.1rem; line-height:1;">{_user_icon}</div>
+            <div>
+                <div style="font-size:0.68rem; color:#64748b; font-weight:600;
+                            text-transform:uppercase; letter-spacing:0.07em;">Signed in as</div>
+                <div style="font-size:0.88rem; font-weight:700; color:#93c5fd;">{_user_label}</div>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -148,6 +186,24 @@ with st.sidebar:
         f'<p style="font-size:0.75rem; color:#64748b; margin-top:6px;"><strong style="color:#93c5fd;">{len(filtered_df):,}</strong> records matched</p>',
         unsafe_allow_html=True,
     )
+
+    # ── Logout Button ─────────────────────────────────────────────────────────
+    def _do_logout() -> None:
+        auth.logout()
+
+    st.markdown(
+        '<hr style="border:none; border-top:1px solid rgba(255,255,255,0.08); margin:14px 0;">',
+        unsafe_allow_html=True,
+    )
+
+    if st.button(
+        "🚪  Logout",
+        key="btn_logout",
+        type="secondary",
+        use_container_width=True,
+        on_click=_do_logout,
+    ):
+        st.rerun()
 
 
 

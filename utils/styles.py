@@ -209,6 +209,33 @@ def inject_css() -> None:
     st.markdown(f"<style>{CSS}</style>", unsafe_allow_html=True)
 
 
+# ── Login-Page CSS ────────────────────────────────────────────────────────────
+# Applied only when the login page is active; hides the sidebar completely.
+
+LOGIN_CSS = """
+/* Hide sidebar and its collapse control on the login page */
+[data-testid="stSidebar"]                { display: none !important; }
+[data-testid="stSidebarCollapsedControl"] { display: none !important; }
+
+/* Full-screen dark gradient background */
+.stApp {
+    background: linear-gradient(135deg, #060d1a 0%, #0a1628 40%, #0f1f3d 100%) !important;
+}
+
+/* Remove default padding so the login card centres cleanly */
+.main .block-container {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    max-width: 100% !important;
+}
+"""
+
+
+def inject_login_css() -> None:
+    """Inject login-page-specific CSS (hides sidebar, sets dark background)."""
+    st.markdown(f"<style>{LOGIN_CSS}</style>", unsafe_allow_html=True)
+
+
 # ── UI Helper Functions (all using inline styles — no CSS classes) ─────────────
 
 def page_header(icon: str, title: str, subtitle: str) -> None:

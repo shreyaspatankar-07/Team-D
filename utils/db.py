@@ -306,17 +306,67 @@ def init_db() -> None:
     );
     """
 
+    ddl_users = """
+    CREATE TABLE IF NOT EXISTS users (
+        user_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+        username  TEXT NOT NULL UNIQUE,
+        password  TEXT NOT NULL,
+        role      TEXT NOT NULL DEFAULT 'employee'
+    );
+    """
+
     with get_connection() as conn:
         conn.execute(ddl_work_orders)
         conn.execute(ddl_pm_schedules)
         conn.execute(ddl_pm_checklists)
         conn.execute(ddl_pm_history)
+        conn.execute(ddl_users)
         # Migration: add technician_type column to pre-existing work_orders databases
         try:
             conn.execute("ALTER TABLE work_orders ADD COLUMN technician_type TEXT NOT NULL DEFAULT ''")
         except Exception:
             pass
         conn.commit()
+
+    # Seed default users if the table is empty
+    _init_default_users()
+
+# ── Auth — Users table helpers ────────────────────────────────────────────────
+
+_DEFAULT_USERS = [
+    {"username": "admin",    "password": "admin",    "role": "admin"},
+    {"username": "employee", "password": "employee", "role": "employee"},
+]
+
+
+def _init_default_users() -> None:
+    """
+    Insert the default admin and employee accounts if the users table is empty.
+    Safe to call on every startup — the INSERT OR IGNORE clause is a no-op when
+    the rows already exist.
+    """
+    sql = """
+    INSERT OR IGNORE INTO users (username, password, role)
+    VALUES (?, ?, ?)
+    """
+    with get_connection() as conn:
+        for user in _DEFAULT_USERS:
+            conn.execute(sql, (user["username"], user["password"], user["role"]))
+        conn.commit()
+
+
+def verify_user_credentials(username: str, password: str) -> dict | None:
+    """
+    Verify username and password against the users table.
+
+    Returns the user row as a dict (keys: user_id, username, password, role)
+    if credentials match, or None if either field is wrong.
+    Does NOT reveal which field was incorrect.
+    """
+    sql = "SELECT user_id, username, role FROM users WHERE username = ? AND password = ?"
+    with get_connection() as conn:
+        row = conn.execute(sql, (username, password)).fetchone()
+    return dict(row) if row else None
 
 
 # ── CRUD — Insert ─────────────────────────────────────────────────────────────
