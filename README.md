@@ -158,5 +158,4 @@ jupyter notebook notebooks/EDA_AI4I_Analysis.ipynb
 
 Run all cells top-to-bottom for the full exploratory data analysis with statistical observations and visualisations.
 =======
-# Team-D
 >>>>>>> 52cd0e0 (Initial commit)
