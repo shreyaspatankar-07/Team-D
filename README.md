@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Machine Failure Analysis Platform
 
 An interactive **Predictive Maintenance** web application built on the **AI4I 2020 dataset**, featuring a multi-page Streamlit dashboard, AI-powered analysis, automated work order management, and session-based authentication.
@@ -158,4 +157,3 @@ jupyter notebook notebooks/EDA_AI4I_Analysis.ipynb
 
 Run all cells top-to-bottom for the full exploratory data analysis with statistical observations and visualisations.
 =======
->>>>>>> 52cd0e0 (Initial commit)
